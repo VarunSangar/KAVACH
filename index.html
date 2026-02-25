@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAVACH — Infrastructure Intelligence System</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+body{
+ margin:0;
+ background:#0b1220;
+ color:#e6edf3;
+ font-family:system-ui;
+ overflow:hidden;
+}
+
+header{
+ position:absolute;
+ top:0;
+ width:100%;
+ padding:14px 22px;
+ background:rgba(10,15,28,.95);
+ border-bottom:1px solid #1f2a44;
+ z-index:1000;
+}
+
+#map{position:absolute;top:60px;bottom:0;width:100%}
+
+.panel{
+ position:absolute;
+ top:70px;
+ right:15px;
+ width:340px;
+ background:#0c1224;
+ border:1px solid #24345a;
+ border-radius:10px;
+ padding:14px;
+ z-index:1000;
+}
+
+h2{color:#7fb6ff;font-size:14px;margin:8px 0}
+
+select,input,button{
+ width:100%;
+ margin:6px 0;
+ background:#0e162b;
+ border:1px solid #2b3f6b;
+ color:white;
+ padding:6px;
+ border-radius:6px;
+}
+
+.metrics div{font-size:12px;margin:4px 0}
+
+.output{
+ background:#0c1527;
+ border:1px solid #263b69;
+ padding:8px;
+ border-radius:6px;
+ font-size:12px;
+ white-space:pre-line;
+ margin-top:6px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<strong>KAVACH — Climate Digital Twin</strong><br>
+<span style="font-size:12px;color:#9fb3c8">
+Multivariate Infrastructure Risk Engine
+</span>
+</header>
+
+<div id="map"></div>
+
+<div class="panel">
+
+<h2>City</h2>
+<select id="city">
+<option value="miami">Miami</option>
+<option value="houston">Houston</option>
+<option value="newyork">New York</option>
+<option value="rio">Rio de Janeiro</option>
+<option value="jakarta">Jakarta</option>
+<option value="manila">Manila</option>
+</select>
+
+<h2>Climate Inputs</h2>
+
+Sea Level Rise (m)
+<input id="slr" type="range" min="0" max="3" step="0.1">
+
+Storm Surge (m)
+<input id="surge" type="range" min="0" max="5" step="0.5">
+
+Rainfall Intensity
+<select id="rain">
+<option>Low</option>
+<option>Medium</option>
+<option>Extreme</option>
+</select>
+
+<h2>System Outputs</h2>
+<div class="metrics">
+<div id="pop"></div>
+<div id="infra"></div>
+<div id="stress"></div>
+<div id="recovery"></div>
+<div id="score"></div>
+</div>
+
+<h2>Resilience Optimization</h2>
+<button onclick="optimize()">Generate Intervention Plan</button>
+<div id="plan" class="output"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+const cities={
+ miami:[25.7617,-80.1918],
+ houston:[29.7604,-95.3698],
+ newyork:[40.7128,-74.006],
+ rio:[-22.9068,-43.1729],
+ jakarta:[-6.2088,106.8456],
+ manila:[14.5995,120.9842]
+};
+
+const map=L.map("map").setView(cities.miami,10);
+
+L.tileLayer(
+"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+).addTo(map);
+
+// Flood hazard tiles (real dataset)
+L.tileLayer(
+"https://flood.firetree.net/tiles/{z}/{x}/{y}.png",
+{opacity:.35}
+).addTo(map);
+
+let overlay;
+
+function update(){
+
+ const slr=+slrSlider.value;
+ const surge=+surgeSlider.value;
+ const rain=rainSelect.value;
+
+ const rainFactor =
+  rain==="Extreme"?1.5 :
+  rain==="Medium"?1.2 : 1;
+
+ const center=map.getCenter();
+
+ const radius=(slr*2200 + surge*1800)*rainFactor + 2000;
+
+ if(overlay) map.removeLayer(overlay);
+
+ overlay=L.circle(center,{
+  radius:radius,
+  color:"#ef4444",
+  fillOpacity:.25
+ }).addTo(map);
+
+ // Multivariate risk model
+
+ const exposure = radius/12;
+
+ const infra = exposure*0.2;
+ const stress = (slr*25 + surge*18)*rainFactor;
+ const recovery = stress*0.6;
+
+ const resilienceScore =
+  Math.max(0,
+   100 - (stress + infra*0.2)
+  );
+
+ pop.textContent =
+  "Population exposed: "+Math.round(exposure).toLocaleString();
+
+ infraOut.textContent =
+  "Critical infrastructure at risk: "+Math.round(infra);
+
+ stressOut.textContent =
+  "System stress index: "+stress.toFixed(1);
+
+ recoveryOut.textContent =
+  "Estimated recovery time: "+Math.round(recovery)+" months";
+
+ scoreOut.textContent =
+  "Infrastructure resilience score: "+Math.round(resilienceScore);
+}
+
+function optimize(){
+
+ const scoreValue =
+  parseFloat(scoreOut.textContent.split(": ")[1]);
+
+ let plan;
+
+ if(scoreValue < 40)
+  plan =
+  "Severe risk detected.\n"+
+  "• Relocate critical facilities\n"+
+  "• Construct surge barriers\n"+
+  "• Elevate transportation networks\n"+
+  "• Harden utilities against failure";
+
+ else if(scoreValue < 70)
+  plan =
+  "Moderate risk.\n"+
+  "• Upgrade drainage systems\n"+
+  "• Reinforce structures\n"+
+  "• Expand emergency capacity";
+
+ else
+  plan =
+  "Low risk.\n"+
+  "• Maintain monitoring\n"+
+  "• Incremental resilience upgrades";
+
+ planBox.textContent = plan;
+}
+
+city.onchange = ()=>{
+ map.flyTo(cities[city.value],10);
+ update();
+};
+
+const slrSlider = document.getElementById("slr");
+const surgeSlider = document.getElementById("surge");
+const rainSelect = document.getElementById("rain");
+
+const pop = document.getElementById("pop");
+const infraOut = document.getElementById("infra");
+const stressOut = document.getElementById("stress");
+const recoveryOut = document.getElementById("recovery");
+const scoreOut = document.getElementById("score");
+const planBox = document.getElementById("plan");
+
+slrSlider.oninput =
+surgeSlider.oninput =
+rainSelect.onchange = update;
+
+update();
+
+</script>
+
+</body>
+</html>
